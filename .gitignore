@@ -49,3 +49,6 @@ temp/
 
 # Docker
 docker-compose.override.yml
+
+
+k8s/analytics/analytics-secret.yaml.useless

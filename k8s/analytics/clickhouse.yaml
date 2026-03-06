@@ -44,9 +44,9 @@ spec:
           ports:
             - containerPort: 9000
             - containerPort: 8123
-          env:
-            - name: CLICKHOUSE_DB
-              value: analytics
+          envFrom:
+            - secretRef:
+                name: env
           volumeMounts:
             - name: clickhouse-data
               mountPath: /var/lib/clickhouse

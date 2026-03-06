@@ -36,21 +36,13 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: event-collector
-          image: ghcr.io/your-org/event-collector:latest
+          image: rg.fr-par.scw.cloud/imageir/go-collector:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-          env:
-            - name: CLICKHOUSE_ADDR
-              value: clickhouse.analytics.svc.cluster.local:9000
-            - name: CLICKHOUSE_DB
-              value: analytics
-            - name: FLUSH_SIZE
-              value: "500"
-            - name: FLUSH_INTERVAL
-              value: "2s"
-            - name: INSERT_TIMEOUT
-              value: "2s"
+          envFrom:
+            - secretRef:
+                name: env
           resources:
             requests:
               cpu: "100m"
