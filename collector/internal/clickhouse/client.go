@@ -108,6 +108,108 @@ func (c *Client) QueryPercentages(ctx context.Context, intervalHours int) ([]map
 	return result, nil
 }
 
+func (c *Client) QueryEventNames(ctx context.Context) ([]string, error) {
+	rows, err := c.conn.Query(ctx, `
+		SELECT DISTINCT event_name
+		FROM analytics.analytics_events
+		ORDER BY event_name ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	names := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if err = rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		names = append(names, name)
+	}
+	return names, nil
+}
+
+func (c *Client) QueryLastEvents(ctx context.Context, limit int, eventName string) ([]map[string]interface{}, error) {
+	query := `
+		SELECT
+			timestamp, event_name, entity_type, entity_id,
+			actor_user_id, actor_entity_id, actor_entity_type,
+			session_id, source, platform, app_version, device_type,
+			user_agent, ip_hash, properties
+		FROM analytics.analytics_events
+		ORDER BY timestamp DESC
+		LIMIT ?`
+	args := []interface{}{limit}
+
+	if eventName != "" {
+		query = `
+		SELECT
+			timestamp, event_name, entity_type, entity_id,
+			actor_user_id, actor_entity_id, actor_entity_type,
+			session_id, source, platform, app_version, device_type,
+			user_agent, ip_hash, properties
+		FROM analytics.analytics_events
+		WHERE event_name = ?
+		ORDER BY timestamp DESC
+		LIMIT ?`
+		args = []interface{}{eventName, limit}
+	}
+
+	rows, err := c.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]map[string]interface{}, 0)
+	for rows.Next() {
+		var (
+			timestamp       time.Time
+			eventNameVal    string
+			entityType      string
+			entityID        string
+			actorUserID     string
+			actorEntityID   string
+			actorEntityType string
+			sessionID       string
+			source          string
+			platform        string
+			appVersion      string
+			deviceType      string
+			userAgent       string
+			ipHash          string
+			properties      string
+		)
+		if err = rows.Scan(
+			&timestamp, &eventNameVal, &entityType, &entityID,
+			&actorUserID, &actorEntityID, &actorEntityType,
+			&sessionID, &source, &platform, &appVersion, &deviceType,
+			&userAgent, &ipHash, &properties,
+		); err != nil {
+			return nil, err
+		}
+		result = append(result, map[string]interface{}{
+			"timestamp":         timestamp.UTC().Format(time.RFC3339),
+			"event_name":        eventNameVal,
+			"entity_type":       entityType,
+			"entity_id":         entityID,
+			"actor_user_id":     actorUserID,
+			"actor_entity_id":   actorEntityID,
+			"actor_entity_type": actorEntityType,
+			"session_id":        sessionID,
+			"source":            source,
+			"platform":          platform,
+			"app_version":       appVersion,
+			"device_type":       deviceType,
+			"user_agent":        userAgent,
+			"ip_hash":           ipHash,
+			"properties":        properties,
+		})
+	}
+	return result, nil
+}
+
 func RetryInsert(ctx context.Context, retries int, wait time.Duration, insertFn func(context.Context) error) error {
 	var err error
 	for i := 0; i < retries; i++ {

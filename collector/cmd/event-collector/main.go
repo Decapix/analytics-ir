@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	chAddr := getenv("CLICKHOUSE_ADDR", "clickhouse.analytics.svc.cluster.local:9000")
+	chAddr := getenv("CLICKHOUSE_ADDR", "clickhouse:9000")
 	chUser := getenv("CLICKHOUSE_USER", "default")
 	chPass := getenv("CLICKHOUSE_PASSWORD", "")
 	chDB := getenv("CLICKHOUSE_DB", "analytics")

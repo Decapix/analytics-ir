@@ -48,6 +48,8 @@ func NewServer(chClient *clickhouse.Client, flushSize int, flushInterval, sessio
 func (s *Server) RegisterRoutes(r *gin.Engine) {
 	r.POST("/events", s.ingestEvent)
 	r.GET("/internal/percentages", s.getPercentages)
+	r.GET("/internal/event-names", s.getEventNames)
+	r.GET("/internal/last-events", s.getLastEvents)
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
 }
 
@@ -104,6 +106,44 @@ func (s *Server) getPercentages(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"interval_hours": hours, "results": result})
+}
+
+func (s *Server) getEventNames(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s.insertTimeout)
+	defer cancel()
+
+	names, err := s.ch.QueryEventNames(ctx)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "analytics unavailable"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"count": len(names), "event_names": names})
+}
+
+func (s *Server) getLastEvents(c *gin.Context) {
+	limit := 20
+	if raw := c.Query("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err == nil && parsed > 0 && parsed <= 1000 {
+			limit = parsed
+		}
+	}
+	eventName := c.Query("event_name")
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), s.insertTimeout)
+	defer cancel()
+
+	events, err := s.ch.QueryLastEvents(ctx, limit, eventName)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "analytics unavailable"})
+		return
+	}
+
+	resp := gin.H{"limit": limit, "count": len(events), "events": events}
+	if eventName != "" {
+		resp["event_name"] = eventName
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func (s *Server) flushAsync() {

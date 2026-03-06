@@ -1,0 +1,44 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    environment:
+      CLICKHOUSE_DB: analytics
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    ports:
+      - "9000:9000"   # native protocol
+      - "8123:8123"   # HTTP interface (handy for curl / Play UI)
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      - ./clickhouse/users.xml:/etc/clickhouse-server/users.d/custom-users.xml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  event-collector:
+    build:
+      context: ./collector
+      dockerfile: Dockerfile
+    environment:
+      CLICKHOUSE_ADDR: clickhouse:9000
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DB: analytics
+      FLUSH_SIZE: "50"          # lower threshold so local tests flush quickly
+      FLUSH_INTERVAL: "2s"
+      SESSION_WINDOW: "30m"
+      INSERT_TIMEOUT: "5s"
+      HTTP_ADDR: ":8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: on-failure
+
+volumes:
+  clickhouse-data:

@@ -36,3 +36,41 @@ Generate a UUID on first app activity, keep it in memory + persistent storage fo
 - `view_*` events are sent when card/item is visible on screen.
 - `click_*` events represent navigation to a detail page.
 - Never send raw IP to APIs; backend computes `ip_hash`.
+
+
+## list event name
+view_post
+click_post
+save_post
+
+view_collection
+click_collection
+save_collection
+
+view_look
+click_look
+save_look
+
+view_article
+click_article
+save_article
+add_article_to_project
+request_article
+credit_article
+
+view_user_profile
+view_brand_page
+view_stylist_page
+view_press_office_page
+
+click_profile_from_search
+
+search
+apply_search_filters
+click_result_from_search
+
+search_brand
+
+session_start
+session_end
+session_ping

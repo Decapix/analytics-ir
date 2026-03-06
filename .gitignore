@@ -1,0 +1,51 @@
+/fastapi_app
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go build directories
+/bin/
+/dist/
+/build/
+/out/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (rarement utilisés aujourd’hui)
+vendor/
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage.out
+*.coverprofile
+
+# Temporary files
+tmp/
+temp/
+
+# Docker
+docker-compose.override.yml

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS analytics.analytics_events (
     user_agent String,
     ip_hash String,
 
-    properties JSON
+    properties String
 )
 ENGINE = MergeTree
 PARTITION BY toYYYYMM(timestamp)
