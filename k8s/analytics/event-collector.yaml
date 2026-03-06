@@ -18,7 +18,7 @@ metadata:
   name: event-collector
   namespace: analytics
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: event-collector
@@ -28,21 +28,30 @@ spec:
         app: event-collector
     spec:
       nodeSelector:
-        workload: analytics
-      tolerations:
-        - key: "workload"
-          operator: "Equal"
-          value: "analytics"
-          effect: "NoSchedule"
+        k8s.scaleway.com/pool-name: analitycs-ir
       containers:
         - name: event-collector
           image: rg.fr-par.scw.cloud/imageir/go-collector:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           envFrom:
             - secretRef:
-                name: env
+                name: analytics-secret
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "100m"
@@ -62,13 +71,39 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Only the fastapi pod in the default namespace can reach the collector
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: default
-        - namespaceSelector:
+          podSelector:
             matchLabels:
-              kubernetes.io/metadata.name: backend
+              io.kompose.service: fastapi
+    # Allow intra-namespace traffic (clickhouse -> collector health, etc.)
+    - from:
+        - podSelector: {}
   egress:
+    # Allow intra-namespace traffic (collector -> clickhouse)
     - to:
         - podSelector: {}
+    # Allow DNS resolution via kube-dns
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow outbound HTTPS to Scaleway registry for image pulls
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP

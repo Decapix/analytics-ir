@@ -1,10 +1,63 @@
 apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-init-sql
+  namespace: analytics
+data:
+  schema.sql: |
+    CREATE DATABASE IF NOT EXISTS analytics;
+
+    CREATE TABLE IF NOT EXISTS analytics.analytics_events (
+      timestamp    DateTime,
+      event_name   LowCardinality(String),
+      entity_type  LowCardinality(String),
+      entity_id    String,
+      actor_user_id     String,
+      actor_entity_id   String,
+      actor_entity_type LowCardinality(String),
+      session_id   String,
+      source       LowCardinality(String),
+      platform     LowCardinality(String),
+      app_version  String,
+      device_type  LowCardinality(String),
+      user_agent   String,
+      ip_hash      String,
+      properties   String
+    ) ENGINE = MergeTree
+    PARTITION BY toYYYYMM(timestamp)
+    ORDER BY (event_name, entity_type, entity_id, timestamp)
+    SETTINGS index_granularity = 8192;
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clickhouse-users-config
+  namespace: analytics
+data:
+  users.xml: |
+    <clickhouse>
+        <users>
+            <default>
+                <password></password>
+                <networks>
+                    <ip>::/0</ip>
+                </networks>
+                <profile>default</profile>
+                <quota>default</quota>
+                <access_management>0</access_management>
+            </default>
+        </users>
+    </clickhouse>
+---
+apiVersion: v1
 kind: Service
 metadata:
   name: clickhouse
   namespace: analytics
 spec:
   type: ClusterIP
+  selector:
+    app: clickhouse
   ports:
     - name: native
       port: 9000
@@ -12,8 +65,6 @@ spec:
     - name: http
       port: 8123
       targetPort: 8123
-  selector:
-    app: clickhouse
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -32,26 +83,40 @@ spec:
         app: clickhouse
     spec:
       nodeSelector:
-        workload: analytics
-      tolerations:
-        - key: "workload"
-          operator: "Equal"
-          value: "analytics"
-          effect: "NoSchedule"
+        k8s.scaleway.com/pool-name: analitycs-ir
       containers:
         - name: clickhouse
           image: clickhouse/clickhouse-server:24.8
           ports:
             - containerPort: 9000
             - containerPort: 8123
-          envFrom:
-            - secretRef:
-                name: env
+          env:
+            - name: CLICKHOUSE_DB
+              value: "analytics"
+            - name: CLICKHOUSE_USER
+              value: "default"
+            - name: CLICKHOUSE_PASSWORD
+              value: ""
           volumeMounts:
             - name: clickhouse-data
               mountPath: /var/lib/clickhouse
             - name: clickhouse-init
               mountPath: /docker-entrypoint-initdb.d
+            - name: clickhouse-users
+              mountPath: /etc/clickhouse-server/users.d/custom-users.xml
+              subPath: users.xml
+          readinessProbe:
+            exec:
+              command: ["clickhouse-client", "--query", "SELECT 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["clickhouse-client", "--query", "SELECT 1"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "500m"
@@ -63,40 +128,15 @@ spec:
         - name: clickhouse-init
           configMap:
             name: clickhouse-init-sql
+        - name: clickhouse-users
+          configMap:
+            name: clickhouse-users-config
   volumeClaimTemplates:
     - metadata:
         name: clickhouse-data
       spec:
         accessModes: ["ReadWriteOnce"]
+        storageClassName: sbs-default-retain
         resources:
           requests:
             storage: 50Gi
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: clickhouse-init-sql
-  namespace: analytics
-data:
-  schema.sql: |
-    CREATE DATABASE IF NOT EXISTS analytics;
-
-    CREATE TABLE IF NOT EXISTS analytics.analytics_events (
-      timestamp DateTime,
-      event_name LowCardinality(String),
-      entity_type LowCardinality(String),
-      entity_id String,
-      actor_user_id String,
-      actor_entity_id String,
-      actor_entity_type LowCardinality(String),
-      session_id String,
-      source LowCardinality(String),
-      platform LowCardinality(String),
-      app_version String,
-      device_type LowCardinality(String),
-      user_agent String,
-      ip_hash String,
-      properties JSON
-    ) ENGINE = MergeTree
-    PARTITION BY toYYYYMM(timestamp)
-    ORDER BY (event_name, entity_type, entity_id, timestamp);

@@ -4,3 +4,4 @@ metadata:
   name: analytics
   labels:
     workload: analytics
+    kubernetes.io/metadata.name: analytics
