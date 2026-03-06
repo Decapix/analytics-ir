@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: event-collector
+  namespace: analytics
+spec:
+  type: ClusterIP
+  selector:
+    app: event-collector
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: event-collector
+  namespace: analytics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: event-collector
+  template:
+    metadata:
+      labels:
+        app: event-collector
+    spec:
+      nodeSelector:
+        workload: analytics
+      tolerations:
+        - key: "workload"
+          operator: "Equal"
+          value: "analytics"
+          effect: "NoSchedule"
+      containers:
+        - name: event-collector
+          image: ghcr.io/your-org/event-collector:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: CLICKHOUSE_ADDR
+              value: clickhouse.analytics.svc.cluster.local:9000
+            - name: CLICKHOUSE_DB
+              value: analytics
+            - name: FLUSH_SIZE
+              value: "500"
+            - name: FLUSH_INTERVAL
+              value: "2s"
+            - name: INSERT_TIMEOUT
+              value: "2s"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: analytics-internal-only
+  namespace: analytics
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: backend
+  egress:
+    - to:
+        - podSelector: {}
