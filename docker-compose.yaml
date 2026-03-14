@@ -6,8 +6,8 @@ services:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ""
     ports:
-      - "9000:9000"   # native protocol
-      - "8123:8123"   # HTTP interface (handy for curl / Play UI)
+      - "9000:9000"
+      - "8123:8123"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ./clickhouse/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
@@ -19,6 +19,20 @@ services:
       retries: 10
       start_period: 10s
 
+  tabix:
+    image: spoonest/clickhouse-tabix-web-client
+    ports:
+      - "8111:80"
+    environment:
+      CH_NAME: local
+      CH_HOST: clickhouse:8123
+      CH_LOGIN: default
+      CH_PASSWORD: ""
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
   event-collector:
     build:
       context: ./collector
@@ -28,7 +42,7 @@ services:
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: ""
       CLICKHOUSE_DB: analytics
-      FLUSH_SIZE: "50"          # lower threshold so local tests flush quickly
+      FLUSH_SIZE: "50"
       FLUSH_INTERVAL: "2s"
       SESSION_WINDOW: "30m"
       INSERT_TIMEOUT: "5s"
