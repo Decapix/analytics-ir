@@ -19,20 +19,6 @@ services:
       retries: 10
       start_period: 10s
 
-  tabix:
-    image: spoonest/clickhouse-tabix-web-client
-    ports:
-      - "8111:80"
-    environment:
-      CH_NAME: local
-      CH_HOST: clickhouse:8123
-      CH_LOGIN: default
-      CH_PASSWORD: ""
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-    restart: unless-stopped
-
   event-collector:
     build:
       context: ./collector
@@ -53,6 +39,24 @@ services:
       clickhouse:
         condition: service_healthy
     restart: on-failure
+
+  dash:
+    build:
+      context: ./dash
+      dockerfile: Dockerfile
+    ports:
+      - "8050:8050"
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      DASH_USERNAME: ${DASH_USERNAME:-admin}
+      DASH_PASSWORD: ${DASH_PASSWORD:-admin}
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   clickhouse-data:
